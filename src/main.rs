@@ -4,7 +4,7 @@ use input::event::touch::TouchEventPosition;
 use input::{Event as InputEvent, Libinput, LibinputInterface};
 use std::fs::{File, OpenOptions};
 use std::os::unix::{fs::OpenOptionsExt, io::OwnedFd};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -12,8 +12,9 @@ use tracing_subscriber::FmtSubscriber;
 extern crate libc;
 use libc::{O_RDONLY, O_RDWR, O_WRONLY};
 
-use crate::gesture::{GestureConfig, GestureState};
+use crate::gesture::GestureState;
 
+mod config;
 mod gesture;
 
 /// Touch Gesture Daemon
@@ -21,12 +22,8 @@ mod gesture;
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Size of screen edge zone in pixels
-    #[arg(long, default_value_t = 50.0)]
-    edge_size: f64,
-
-    /// Require swipes to start from screen edges
-    #[arg(long, default_value_t = true)]
-    require_edge: bool,
+    #[arg(long, short)]
+    config: PathBuf,
 }
 
 struct Interface;
@@ -59,13 +56,7 @@ fn main() {
     input.udev_assign_seat("seat0").unwrap();
     let (width, height) = get_output_dimensions().unwrap();
 
-    tracing::info!(
-        "Starting Roland with edge_size={}px, require_edge_start={}",
-        args.edge_size,
-        args.require_edge
-    );
-
-    let config = GestureConfig::new(args.edge_size, args.require_edge);
+    let config = config::GesturesConfig::from_path(&args.config).unwrap();
     let mut state = GestureState::new(config, width as f64, height as f64);
 
     loop {
@@ -85,9 +76,7 @@ fn main() {
                     );
                 }
                 InputEvent::Touch(TouchEvent::Up(_)) => {
-                    if let Some(gesture) = state.handle_touch_up() {
-                        tracing::info!("{gesture:?}");
-                    }
+                    state.handle_touch_up();
                 }
                 _ => {}
             }

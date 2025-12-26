@@ -1,0 +1,23 @@
+[[gestures]]
+num_fingers = 3
+kind = "SwipeUp"
+action = "open_window"
+min_duration = { secs = 0, nanos = 500000000 }
+max_distance = 100.0
+on_edge = { Up = 50 }
+
+[[gestures]]
+num_fingers = 2
+kind = "Press"
+action = "toggle_mute"
+min_duration = { secs = 0, nanos = 200000000 }
+max_distance = 5.0
+on_edge = { Left = 30 }
+
+[[gestures]]
+num_fingers = 4
+kind = "SwipeRight"
+action = "next_track"
+min_duration = { secs = 0, nanos = 300000000 }
+max_distance = 80.0
+on_edge = { Right = 40 }
