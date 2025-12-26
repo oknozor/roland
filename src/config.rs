@@ -41,43 +41,43 @@ impl GestureConfig {
             return false;
         }
 
-        if let Some(min_duration) = self.min_duration {
-            if duration < Duration::from_millis(min_duration) {
-                tracing::debug!("Gesture duration below min_duration, ignoring");
-                return false;
-            }
+        if let Some(min_duration) = self.min_duration
+            && duration < Duration::from_millis(min_duration)
+        {
+            tracing::debug!("Gesture duration below min_duration, ignoring");
+            return false;
         }
 
-        if let Some(max_duration) = self.max_duration {
-            if duration > Duration::from_millis(max_duration) {
-                tracing::debug!("Gesture duration exceeds max_duration, ignoring");
-                return false;
-            }
+        if let Some(max_duration) = self.max_duration
+            && duration > Duration::from_millis(max_duration)
+        {
+            tracing::debug!("Gesture duration exceeds max_duration, ignoring");
+            return false;
         }
 
         let dx = current_position.0 - start_position.0;
         let dy = current_position.1 - start_position.1;
-        let distance = ((dx * dx + dy * dy) as f64).sqrt();
+        let distance = (dx * dx + dy * dy).sqrt();
 
-        if let Some(min_distance) = self.min_distance {
-            if distance < min_distance {
-                tracing::debug!("Gesture distance below min_distance, ignoring");
-                return false;
-            }
+        if let Some(min_distance) = self.min_distance
+            && distance < min_distance
+        {
+            tracing::debug!("Gesture distance below min_distance, ignoring");
+            return false;
         }
 
-        if let Some(max_distance) = self.max_distance {
-            if distance > max_distance {
-                tracing::debug!("Gesture distance exceeds max_distance, ignoring");
-                return false;
-            }
+        if let Some(max_distance) = self.max_distance
+            && distance > max_distance
+        {
+            tracing::debug!("Gesture distance exceeds max_distance, ignoring");
+            return false;
         }
 
         if !self.is_on_screen_edge(
-            start_position.0 as f64,
-            start_position.1 as f64,
-            screen_size.0 as f64,
-            screen_size.1 as f64,
+            start_position.0,
+            start_position.1,
+            screen_size.0,
+            screen_size.1,
         ) {
             tracing::debug!("Gesture not on screen edge, ignoring");
             return false;

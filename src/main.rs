@@ -111,9 +111,5 @@ fn get_output_dimensions() -> Option<(u32, u32)> {
     let outputs: std::collections::HashMap<String, OutputData> =
         serde_json::from_str(&json_str).ok()?;
 
-    if let Some(output_data) = outputs.values().next() {
-        Some((output_data.logical.width, output_data.logical.height))
-    } else {
-        None
-    }
+    outputs.values().next().map(|output_data| (output_data.logical.width, output_data.logical.height))
 }
