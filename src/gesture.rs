@@ -54,7 +54,6 @@ impl GestureState {
     }
 
     pub fn handle_touch_up(&mut self) {
-        self.active_touches -= 1;
         if let Some(swipe) = self.swipe.take() {
             for gesture in self.config.gestures.iter() {
                 let duration = swipe.start_time.elapsed();
@@ -65,10 +64,14 @@ impl GestureState {
                     self.screen_dimensions,
                     duration,
                 ) {
+                    tracing::info!("Triggering gesture: {:?}", gesture);
                     gesture.run();
+                    break;
                 }
             }
 
+            tracing::debug!("remove active touch");
+            self.active_touches = 0;
             self.swipe = None;
         }
     }

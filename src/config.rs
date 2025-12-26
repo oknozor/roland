@@ -12,8 +12,8 @@ pub struct GestureConfig {
     num_fingers: u32,
     kind: GestureKind,
     action: String,
-    min_duration: Option<Duration>,
-    max_duration: Option<Duration>,
+    min_duration: Option<u64>,
+    max_duration: Option<u64>,
     max_distance: Option<f64>,
     min_distance: Option<f64>,
     on_edge: Option<EdgeRequirement>,
@@ -37,17 +37,20 @@ impl GestureConfig {
         duration: Duration,
     ) -> bool {
         if num_finger != self.num_fingers {
+            tracing::debug!("Gesture finger count mismatch, ignoring");
             return false;
         }
 
         if let Some(min_duration) = self.min_duration {
-            if duration < min_duration {
+            if duration < Duration::from_millis(min_duration) {
+                tracing::debug!("Gesture duration below min_duration, ignoring");
                 return false;
             }
         }
 
         if let Some(max_duration) = self.max_duration {
-            if duration > max_duration {
+            if duration > Duration::from_millis(max_duration) {
+                tracing::debug!("Gesture duration exceeds max_duration, ignoring");
                 return false;
             }
         }
@@ -58,12 +61,14 @@ impl GestureConfig {
 
         if let Some(min_distance) = self.min_distance {
             if distance < min_distance {
+                tracing::debug!("Gesture distance below min_distance, ignoring");
                 return false;
             }
         }
 
         if let Some(max_distance) = self.max_distance {
             if distance > max_distance {
+                tracing::debug!("Gesture distance exceeds max_distance, ignoring");
                 return false;
             }
         }
@@ -74,43 +79,49 @@ impl GestureConfig {
             screen_size.0 as f64,
             screen_size.1 as f64,
         ) {
+            tracing::debug!("Gesture not on screen edge, ignoring");
             return false;
         }
 
         match self.kind {
             GestureKind::SwipeUp => {
-                if dx.abs() < dy.abs() && dy < 0.0 {
-                    return false;
+                if is_vertical(dx, dy) && dy < 0.0 {
+                    tracing::debug!("Gesture swipe up detected");
+                    return true;
                 }
             }
             GestureKind::SwipeDown => {
-                if dx.abs() < dy.abs() && dy > 0.0 {
-                    return false;
+                if is_vertical(dx, dy) && dy > 0.0 {
+                    tracing::debug!("Gesture swipe down detected");
+                    return true;
                 }
             }
             GestureKind::SwipeLeft => {
-                if dx.abs() > dy.abs() && dx < 0.0 {
+                if is_horizontal(dx, dy) && dx < 0.0 {
+                    tracing::debug!("Gesture swipe left detected");
                     return true;
                 }
             }
             GestureKind::SwipeRight => {
-                if dx.abs() > dy.abs() && dx > 0.0 {
+                if is_horizontal(dx, dy) && dx > 0.0 {
+                    tracing::debug!("Gesture swipe right detected");
                     return true;
                 }
             }
             GestureKind::Press => {
                 // Press gesture does not depend on movement
+                return true;
             }
         }
 
-        true
+        false
     }
 
     fn is_on_screen_edge(&self, x: f64, y: f64, screen_width: f64, screen_height: f64) -> bool {
         match self.on_edge {
-            Some(EdgeRequirement::Up(size)) => y <= size as f64,
+            Some(EdgeRequirement::Top(size)) => y <= size as f64,
             Some(EdgeRequirement::Left(size)) => x <= size as f64,
-            Some(EdgeRequirement::Down(size)) => y >= (screen_height - size as f64),
+            Some(EdgeRequirement::Bottom(size)) => y >= (screen_height - size as f64),
             Some(EdgeRequirement::Right(size)) => x >= (screen_width - size as f64),
             None => true,
         }
@@ -119,9 +130,9 @@ impl GestureConfig {
 
 #[derive(Deserialize, Debug)]
 pub enum EdgeRequirement {
-    Up(u32),
+    Top(u32),
     Left(u32),
-    Down(u32),
+    Bottom(u32),
     Right(u32),
 }
 
@@ -140,6 +151,14 @@ impl GesturesConfig {
         let config: GesturesConfig = toml::from_str(&content)?;
         Ok(config)
     }
+}
+
+fn is_vertical(dx: f64, dy: f64) -> bool {
+    dy.abs() > dx.abs()
+}
+
+fn is_horizontal(dx: f64, dy: f64) -> bool {
+    dx.abs() > dy.abs()
 }
 
 #[cfg(test)]
