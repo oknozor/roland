@@ -53,18 +53,19 @@ impl Default for TwoFingerPress {
 
 impl GestureState {
     pub fn update(&mut self, x: f64, y: f64) {
+        tracing::trace!("Updating position to ({}, {})", x, y);
         self.position = (x, y);
-        tracing::debug!("Motion: ({:?})", self.position);
     }
 
-    pub fn handle_touch_down(&mut self) {
+    pub fn handle_touch_down(&mut self, x: f64, y: f64) {
         self.active_touches += 1;
         tracing::trace!("Active touches incremented {}", self.active_touches);
-        tracing::debug!("Touch down at {:?}", self.position);
 
         match self.active_touches {
             1 => {
-                self.swipe = Some(Swipe::new(self.position));
+                let swipe = Swipe::new((x, y));
+                tracing::debug!("New swipe {swipe:?}");
+                self.swipe = Some(swipe);
             }
             2 => {
                 self.two_finger = Some(TwoFingerPress::default());
@@ -76,18 +77,11 @@ impl GestureState {
     pub fn handle_touch_up(&mut self) -> Option<Gesture> {
         self.active_touches -= 1;
         if let Some(swipe) = self.swipe.take() {
+            tracing::debug!("Swipe triggered {swipe:?}");
             let duration = swipe.start_time.elapsed();
             if duration > swipe.max_swipe_duration {
                 return None;
             }
-
-            tracing::debug!(
-                "Position: ({}, {}), Start Position: ({}, {})",
-                self.position.0,
-                self.position.1,
-                swipe.start_position.0,
-                swipe.start_position.1
-            );
 
             let dx = self.position.0 - swipe.start_position.0;
             let dy = self.position.1 - swipe.start_position.1;
@@ -101,7 +95,6 @@ impl GestureState {
             println!("{:?}", distance);
             // Determine swipe direction
             self.swipe = None;
-            tracing::debug!("dx {dx} dy {dy}");
             return if dx.abs() > dy.abs() {
                 if dx > 0.0 {
                     Some(Gesture::SwipeRight)

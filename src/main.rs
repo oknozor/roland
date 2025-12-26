@@ -55,8 +55,11 @@ fn main() {
                         touch_event.y_transformed(height),
                     );
                 }
-                InputEvent::Touch(TouchEvent::Down(_)) => {
-                    state.handle_touch_down();
+                InputEvent::Touch(TouchEvent::Down(touch_event)) => {
+                    state.handle_touch_down(
+                        touch_event.x_transformed(width),
+                        touch_event.y_transformed(height),
+                    );
                 }
                 InputEvent::Touch(TouchEvent::Up(_)) => {
                     if let Some(gesture) = state.handle_touch_up() {
