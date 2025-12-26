@@ -1,4 +1,4 @@
-use evdev::{AbsoluteAxisCode, AbsoluteAxisEvent, Device, EventSummary, KeyCode};
+use evdev::{AbsoluteAxisCode, Device, EventSummary, KeyCode};
 use std::fs::File;
 use std::os::fd::OwnedFd;
 use std::path::PathBuf;
@@ -14,6 +14,68 @@ struct SwipeDetector {
     start_time: Instant,
     min_swipe_distance: i32,
     max_swipe_duration: Duration,
+}
+
+/// Struct to track two-finger long press gesture state
+struct TwoFingerLongPressDetector {
+    active_touches: u32,
+    press_start_time: Option<Instant>,
+    min_long_press_duration: Duration,
+    is_detected: bool,
+}
+
+impl TwoFingerLongPressDetector {
+    fn new() -> Self {
+        TwoFingerLongPressDetector {
+            active_touches: 0,
+            press_start_time: None,
+            min_long_press_duration: Duration::from_millis(800), // 800ms for long press
+            is_detected: false,
+        }
+    }
+
+    fn handle_touch_event(&mut self, is_press: bool) -> Option<String> {
+        if is_press {
+            // Touch down
+            self.active_touches += 1;
+
+            if self.active_touches == 2 {
+                // Two fingers are now down, start timing
+                self.press_start_time = Some(Instant::now());
+                self.is_detected = false;
+                println!("Two fingers detected, starting long press timer");
+            }
+        } else {
+            // Touch up
+            if self.active_touches > 0 {
+                self.active_touches -= 1;
+            }
+
+            if self.active_touches < 2 {
+                // Less than two fingers, reset the timer
+                self.press_start_time = None;
+            }
+        }
+
+        // Check if we have a long press
+        if let Some(start_time) = self.press_start_time {
+            if self.active_touches >= 2 && !self.is_detected {
+                let duration = start_time.elapsed();
+                if duration >= self.min_long_press_duration {
+                    self.is_detected = true;
+                    return Some("two-finger-long-press".to_string());
+                }
+            }
+        }
+
+        None
+    }
+
+    fn reset(&mut self) {
+        self.active_touches = 0;
+        self.press_start_time = None;
+        self.is_detected = false;
+    }
 }
 
 impl SwipeDetector {
@@ -100,6 +162,7 @@ impl DeviceWrapper {
     pub fn listen(self) {
         let mut device = self.0;
         let mut swipe_detector = SwipeDetector::new();
+        let mut long_press_detector = TwoFingerLongPressDetector::new();
         let mut x_position: Option<i32> = None;
         let mut y_position: Option<i32> = None;
 
@@ -110,23 +173,17 @@ impl DeviceWrapper {
                         match axis {
                             AbsoluteAxisCode::ABS_X => {
                                 x_position = Some(value);
-                                println!("X axis moved to {}", value);
                             }
                             AbsoluteAxisCode::ABS_Y => {
                                 y_position = Some(value);
-                                println!("Y axis moved to {}", value);
                             }
                             AbsoluteAxisCode::ABS_MT_POSITION_X => {
                                 x_position = Some(value);
-                                println!("Multi-touch X position: {}", value);
                             }
                             AbsoluteAxisCode::ABS_MT_POSITION_Y => {
                                 y_position = Some(value);
-                                println!("Multi-touch Y position: {}", value);
                             }
-                            _ => {
-                                println!("The Axis {:?} was moved to {}", axis, value);
-                            }
+                            _ => {}
                         }
 
                         // Update swipe detector with current position
@@ -134,11 +191,20 @@ impl DeviceWrapper {
                             swipe_detector.update_position(x, y);
                         }
                     }
-                    EventSummary::Key(_, KeyCode::BTN_TOUCH, 1) if !swipe_detector.is_tracking => {
+                    EventSummary::Key(_, KeyCode::BTN_TOUCH, 1) => {
                         // Touch started - begin swipe tracking
                         if let (Some(x), Some(y)) = (x_position, y_position) {
                             swipe_detector.start_tracking(x, y);
                             println!("Touch started at ({}, {})", x, y);
+                        }
+
+                        // Also handle for two-finger long press detection
+                        if let Some(gesture) = long_press_detector.handle_touch_event(true) {
+                            println!("Gesture detected: {}", gesture);
+                            if gesture == "two-finger-long-press" {
+                                println!("Handling two-finger long press gesture");
+                                // Add your two-finger long press logic here
+                            }
                         }
                     }
                     EventSummary::Key(_, KeyCode::BTN_TOUCH, 0) => {
@@ -169,8 +235,11 @@ impl DeviceWrapper {
                         } else {
                             println!("Touch ended - no swipe detected");
                         }
+
+                        // Handle touch release for long press detection
+                        long_press_detector.handle_touch_event(false);
                     }
-                    e => println!("got event {:?}", e),
+                    _ => {}
                 }
             }
         }
