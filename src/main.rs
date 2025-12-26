@@ -1,3 +1,4 @@
+use clap::Parser;
 use input::event::TouchEvent;
 use input::event::touch::TouchEventPosition;
 use input::{Event as InputEvent, Libinput, LibinputInterface};
@@ -11,9 +12,22 @@ use tracing_subscriber::FmtSubscriber;
 extern crate libc;
 use libc::{O_RDONLY, O_RDWR, O_WRONLY};
 
-use crate::gesture::GestureState;
+use crate::gesture::{GestureConfig, GestureState};
 
 mod gesture;
+
+/// Touch Gesture Daemon
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Size of screen edge zone in pixels
+    #[arg(long, default_value_t = 50.0)]
+    edge_size: f64,
+
+    /// Require swipes to start from screen edges
+    #[arg(long, default_value_t = true)]
+    require_edge: bool,
+}
 
 struct Interface;
 
@@ -34,6 +48,8 @@ impl LibinputInterface for Interface {
 }
 
 fn main() {
+    let args = Args::parse();
+
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::DEBUG)
         .finish();
@@ -43,7 +59,14 @@ fn main() {
     input.udev_assign_seat("seat0").unwrap();
     let (width, height) = get_output_dimensions().unwrap();
 
-    let mut state = GestureState::default();
+    tracing::info!(
+        "Starting Roland with edge_size={}px, require_edge_start={}",
+        args.edge_size,
+        args.require_edge
+    );
+
+    let config = GestureConfig::new(args.edge_size, args.require_edge);
+    let mut state = GestureState::new(config, width as f64, height as f64);
 
     loop {
         input.dispatch().unwrap();
