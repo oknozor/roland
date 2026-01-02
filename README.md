@@ -8,6 +8,7 @@ This project is **not intended for long-term maintenance**. It serves as a stopg
 
 ## Features
 
+- Multi finger touch support
 - Recognize basic touch gestures (e.g., swipes).
 - Configurable gesture callbacks.
 - Lightweight and minimal dependencies.

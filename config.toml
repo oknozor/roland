@@ -1,14 +1,14 @@
  [[gestures]]
  num_fingers = 3
  kind = "SwipeDown"
- action = "niri msg action open-overview"
+ action = "notify-send 'Three Finger Swipe Down'"
  min_duration = 50
  mix_distance = 100.0
 
 [[gestures]]
 num_fingers = 2
 kind = "SwipeLeft"
-action = "niri msg action focus-column-right"
+action = "notify-send 'Two Finger Swipe Left' (Right Edge)"
 min_duration = 50
 min_distance = 100.0
 on_edge = { Right = 300 }
@@ -16,7 +16,7 @@ on_edge = { Right = 300 }
 [[gestures]]
 num_fingers = 2
 kind = "SwipeRight"
-action = "niri msg action focus-column-left"
+action = "notify-send 'Two Finger Swipe Right' (Left Edge)"
 min_duration = 50
 min_distance = 100.0
 on_edge = { Left = 300 }
@@ -24,7 +24,7 @@ on_edge = { Left = 300 }
 [[gestures]]
 num_fingers = 2
 kind = "SwipeDown"
-action = "niri msg action focus-window-or-workspace-up"
+action = "notify-send 'Two Finger Swipe Down (Left Edge)'"
 min_duration = 50
 min_distance = 100.0
 on_edge = { Left = 300 }
@@ -32,7 +32,7 @@ on_edge = { Left = 300 }
 [[gestures]]
 num_fingers = 2
 kind = "SwipeDown"
-action = "niri msg action focus-window-or-workspace-up"
+action = "notify-send 'Two Finger Swipe Down (Top Edge)'"
 min_duration = 50
 min_distance = 100.0
 on_edge = { Top = 300 }
@@ -40,7 +40,14 @@ on_edge = { Top = 300 }
 [[gestures]]
 num_fingers = 2
 kind = "SwipeUp"
-action = "niri msg action focus-window-or-workspace-down"
+action = "notify-send 'Two Finger Swipe Up (Bottom Edge)'"
 min_duration = 50
 min_distance = 100.0
 on_edge = { Bottom = 300 }
+
+[[gestures]]
+num_fingers = 4
+kind = "Press"
+action = "notify-send 'Long Press' 'Four finger long press detected'"
+min_duration = 500
+max_distance = 20.0

@@ -136,12 +136,20 @@ pub enum EdgeRequirement {
     Right(u32),
 }
 
+/// Gesture types supported by the daemon
+///
+/// For Press gestures:
+/// - `min_duration`: Required - milliseconds to hold before triggering (e.g., 500 for 0.5s)
+/// - `max_distance`: Recommended - maximum movement allowed in pixels (e.g., 20.0)
+/// - Action triggers when duration is met, not on finger release
+/// - Use max_distance to prevent conflicts with swipe gestures
 #[derive(Deserialize, Debug)]
 pub enum GestureKind {
     SwipeUp,
     SwipeDown,
     SwipeLeft,
     SwipeRight,
+    /// Long press gesture - triggers after holding for min_duration
     Press,
 }
 
