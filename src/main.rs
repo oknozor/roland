@@ -2,8 +2,12 @@ use clap::Parser;
 use input::event::TouchEvent;
 use input::event::touch::TouchEventPosition;
 use input::{Event as InputEvent, Libinput, LibinputInterface};
+use rustix::event::{PollFd, PollFlags, poll};
 use std::fs::{File, OpenOptions};
-use std::os::unix::{fs::OpenOptionsExt, io::OwnedFd};
+use std::os::unix::{
+    fs::OpenOptionsExt,
+    io::{AsFd, OwnedFd},
+};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tracing::Level;
@@ -60,6 +64,11 @@ fn main() {
     let mut state = GestureState::new(config, width as f64, height as f64);
 
     loop {
+        // Wait for events using poll() to avoid busy-waiting
+        let poll_fd = PollFd::from_borrowed_fd(input.as_fd(), PollFlags::IN);
+        poll(&mut [poll_fd], -1).unwrap();
+
+        // Process events when available
         input.dispatch().unwrap();
         for event in &mut input {
             match event {
