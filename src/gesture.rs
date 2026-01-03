@@ -45,21 +45,17 @@ impl GestureState {
     pub fn update(&mut self, x: f64, y: f64) {
         tracing::trace!("Updating position to ({}, {})", x, y);
         self.position = (x, y);
-
-        // Check if any press gestures should be triggered
         self.check_press_gestures();
     }
 
     fn check_press_gestures(&mut self) {
         if let Some(gesture) = &mut self.swipe {
-            // Skip if already triggered
             if gesture.triggered {
                 return;
             }
 
             let duration = gesture.start_time.elapsed();
 
-            // Check all press gestures
             for gesture_config in self.config.gestures.iter() {
                 if gesture_config.should_trigger(
                     self.active_touches,
@@ -87,7 +83,6 @@ impl GestureState {
 
     pub fn handle_touch_up(&mut self) {
         if let Some(swipe) = self.swipe.take() {
-            // Skip gesture detection if already triggered (e.g., by a press gesture)
             if !swipe.triggered {
                 for gesture in self.config.gestures.iter() {
                     let duration = swipe.start_time.elapsed();
