@@ -169,7 +169,7 @@ mod tests {
     #[test]
     fn test_from_path() {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        path.push("config.toml");
+        path.push("config.example.toml");
 
         let config = GesturesConfig::from_path(&path).unwrap();
         println!("{:?}", config)
