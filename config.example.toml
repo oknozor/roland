@@ -3,7 +3,7 @@
  kind = "SwipeDown"
  action = "notify-send 'Three Finger Swipe Down'"
  min_duration = 50
- mix_distance = 100.0
+ min_distance = 100.0
 
 [[gestures]]
 num_fingers = 2
@@ -47,7 +47,21 @@ on_edge = { Bottom = 300 }
 
 [[gestures]]
 num_fingers = 4
-kind = "Press"
-action = "notify-send 'Long Press' 'Four finger long press detected'"
+kind = "Hold"
+action = "notify-send 'Hold' 'Four finger long press detected'"
 min_duration = 500
 max_distance = 20.0
+
+[[gestures]]
+num_fingers = 4
+kind = "PinchOut"
+action = "notify-send 'Four Finger PinchOut'"
+min_duration = 50
+min_distance = 100.0
+
+[[gestures]]
+num_fingers = 4
+kind = "PinchIn"
+action = "notify-send 'Four Finger PinchIn'"
+min_duration = 50
+min_distance = 100.0

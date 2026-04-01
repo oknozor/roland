@@ -1,76 +1,88 @@
-use std::time::Duration;
+use std::{process::Child, time::Duration};
 
 use serde::Deserialize;
+
+const SIN_PI_8: f64 = 0.38268;
 
 #[derive(Deserialize, Debug)]
 pub struct GesturesConfig {
     pub gestures: Vec<GestureConfig>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq)]
 pub struct GestureConfig {
-    num_fingers: u32,
-    kind: GestureKind,
+    num_fingers: usize,
     action: String,
     min_duration: Option<u64>,
     max_duration: Option<u64>,
-    max_distance: Option<f64>,
     min_distance: Option<f64>,
+    max_distance: Option<f64>,
+    kind: GestureKind,
     on_edge: Option<EdgeRequirement>,
 }
 
 impl GestureConfig {
-    pub fn run(&self) {
+    pub fn run(&self) -> Result<Child, std::io::Error> {
         std::process::Command::new("sh")
             .arg("-c")
             .arg(&self.action)
             .spawn()
-            .expect("Failed to execute command");
     }
 
     pub fn should_trigger(
         &self,
-        num_finger: u32,
+        num_finger: usize,
+        spread_diff: Option<f64>,
+        centroid_diff: Option<(f64, f64)>,
         start_position: (f64, f64),
-        current_position: (f64, f64),
         screen_size: (f64, f64),
         duration: Duration,
     ) -> bool {
+        let gestures = self.conclude_gestures(
+            num_finger,
+            spread_diff,
+            centroid_diff,
+            start_position,
+            screen_size,
+            duration,
+        );
+
+        if gestures.contains(&self.kind) {
+            tracing::debug!(
+                "Gesture concluded {num_finger}/{gestures:?} <==> Trigger target {}/{:?}",
+                self.num_fingers,
+                self.kind
+            );
+            return true;
+        }
+        return false;
+    }
+
+    fn conclude_gestures(
+        &self,
+        num_finger: usize,
+        spread_diff: Option<f64>,
+        centroid_diff: Option<(f64, f64)>,
+        start_position: (f64, f64),
+        screen_size: (f64, f64),
+        duration: Duration,
+    ) -> Vec<GestureKind> {
+        let mut gestures = Vec::with_capacity(3);
+
         if num_finger != self.num_fingers {
-            tracing::debug!("Gesture finger count mismatch, ignoring");
-            return false;
+            return gestures;
         }
 
         if let Some(min_duration) = self.min_duration
             && duration < Duration::from_millis(min_duration)
         {
-            tracing::debug!("Gesture duration below min_duration, ignoring");
-            return false;
+            return gestures;
         }
 
         if let Some(max_duration) = self.max_duration
             && duration > Duration::from_millis(max_duration)
         {
-            tracing::debug!("Gesture duration exceeds max_duration, ignoring");
-            return false;
-        }
-
-        let dx = current_position.0 - start_position.0;
-        let dy = current_position.1 - start_position.1;
-        let distance = (dx * dx + dy * dy).sqrt();
-
-        if let Some(min_distance) = self.min_distance
-            && distance < min_distance
-        {
-            tracing::debug!("Gesture distance below min_distance, ignoring");
-            return false;
-        }
-
-        if let Some(max_distance) = self.max_distance
-            && distance > max_distance
-        {
-            tracing::debug!("Gesture distance exceeds max_distance, ignoring");
-            return false;
+            return gestures;
         }
 
         if !self.is_on_screen_edge(
@@ -79,42 +91,56 @@ impl GestureConfig {
             screen_size.0,
             screen_size.1,
         ) {
-            tracing::debug!("Gesture not on screen edge, ignoring");
-            return false;
+            return gestures;
         }
 
-        match self.kind {
-            GestureKind::SwipeUp => {
-                if is_vertical(dx, dy) && dy < 0.0 {
-                    tracing::debug!("Gesture swipe up detected");
-                    return true;
-                }
-            }
-            GestureKind::SwipeDown => {
-                if is_vertical(dx, dy) && dy > 0.0 {
-                    tracing::debug!("Gesture swipe down detected");
-                    return true;
-                }
-            }
-            GestureKind::SwipeLeft => {
-                if is_horizontal(dx, dy) && dx < 0.0 {
-                    tracing::debug!("Gesture swipe left detected");
-                    return true;
-                }
-            }
-            GestureKind::SwipeRight => {
-                if is_horizontal(dx, dy) && dx > 0.0 {
-                    tracing::debug!("Gesture swipe right detected");
-                    return true;
-                }
-            }
-            GestureKind::Press => {
-                // Press gesture does not depend on movement
-                return true;
-            }
+        let min_distance = self.min_distance.unwrap_or(0.0);
+
+        let (dx, dy) = match centroid_diff {
+            Some(diff) => diff,
+            None => return gestures,
+        };
+        let dr = dx.hypot(dy);
+
+        if dr < min_distance {
+            return gestures;
         }
 
-        false
+        if let Some(max_distance) = self.max_distance
+            && dr > max_distance
+        {
+            return gestures;
+        }
+
+        gestures.push(GestureKind::Hold);
+
+        match spread_diff {
+            Some(ds) if ds > min_distance => gestures.push(GestureKind::PinchOut),
+            Some(ds) if ds < -min_distance => gestures.push(GestureKind::PinchIn),
+            _ => {}
+        }
+
+        let projected = dx.hypot(dy) * SIN_PI_8;
+        match (
+            dx > projected,
+            dx < -projected,
+            dy > projected,
+            dy < -projected,
+        ) {
+            (true, false, false, false) => gestures.push(GestureKind::SwipeRight),
+            (false, true, false, false) => gestures.push(GestureKind::SwipeLeft),
+            (false, false, true, false) => gestures.push(GestureKind::SwipeDown),
+            (false, false, false, true) => gestures.push(GestureKind::SwipeUp),
+
+            (true, false, true, false) => gestures.push(GestureKind::SwipeDownRight),
+            (false, true, true, false) => gestures.push(GestureKind::SwipeDownLeft),
+            (true, false, false, true) => gestures.push(GestureKind::SwipeUpRight),
+            (false, true, false, true) => gestures.push(GestureKind::SwipeUpLeft),
+
+            _ => {}
+        };
+
+        return gestures;
     }
 
     fn is_on_screen_edge(&self, x: f64, y: f64, screen_width: f64, screen_height: f64) -> bool {
@@ -128,7 +154,7 @@ impl GestureConfig {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq)]
 pub enum EdgeRequirement {
     Top(u32),
     Left(u32),
@@ -136,13 +162,19 @@ pub enum EdgeRequirement {
     Right(u32),
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 pub enum GestureKind {
     SwipeUp,
     SwipeDown,
     SwipeLeft,
     SwipeRight,
-    Press,
+    SwipeUpRight,
+    SwipeUpLeft,
+    SwipeDownRight,
+    SwipeDownLeft,
+    PinchIn,
+    PinchOut,
+    Hold,
 }
 
 impl GesturesConfig {
@@ -151,14 +183,6 @@ impl GesturesConfig {
         let config: GesturesConfig = toml::from_str(&content)?;
         Ok(config)
     }
-}
-
-fn is_vertical(dx: f64, dy: f64) -> bool {
-    dy.abs() > dx.abs()
-}
-
-fn is_horizontal(dx: f64, dy: f64) -> bool {
-    dx.abs() > dy.abs()
 }
 
 #[cfg(test)]

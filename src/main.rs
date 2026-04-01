@@ -1,6 +1,6 @@
 use clap::Parser;
 use input::event::TouchEvent;
-use input::event::touch::TouchEventPosition;
+use input::event::touch::{TouchEventPosition, TouchEventSlot};
 use input::{Event as InputEvent, Libinput, LibinputInterface};
 use rustix::event::{PollFd, PollFlags, poll};
 use std::fs::{File, OpenOptions};
@@ -74,18 +74,20 @@ fn main() {
             match event {
                 InputEvent::Touch(TouchEvent::Motion(touch_event)) => {
                     state.update(
+                        touch_event.slot(),
                         touch_event.x_transformed(width),
                         touch_event.y_transformed(height),
                     );
                 }
                 InputEvent::Touch(TouchEvent::Down(touch_event)) => {
-                    state.handle_touch_down(
+                    state.touch_down(
+                        touch_event.slot(),
                         touch_event.x_transformed(width),
                         touch_event.y_transformed(height),
                     );
                 }
-                InputEvent::Touch(TouchEvent::Up(_)) => {
-                    state.handle_touch_up();
+                InputEvent::Touch(TouchEvent::Up(touch_event)) => {
+                    state.touch_up(touch_event.slot());
                 }
                 _ => {}
             }
@@ -93,10 +95,45 @@ fn main() {
     }
 }
 
+enum Compositor {
+    Niri,
+    Hyprland,
+    Sway,
+}
+
+fn detect_compositor() -> Option<Compositor> {
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP")
+        .unwrap_or_default()
+        .to_lowercase();
+
+    match (
+        desktop.as_str(),
+        std::env::var("NIRI_SOCKET").is_ok(),
+        std::env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok(),
+        std::env::var("SWAYSOCK").is_ok(),
+    ) {
+        (_, true, _, _) => Some(Compositor::Niri),
+        (_, _, true, _) => Some(Compositor::Hyprland),
+        (_, _, _, true) => Some(Compositor::Sway),
+        (d, _, _, _) if d.contains("niri") => Some(Compositor::Niri),
+        (d, _, _, _) if d.contains("hyprland") => Some(Compositor::Hyprland),
+        (d, _, _, _) if d.contains("sway") => Some(Compositor::Sway),
+        _ => None,
+    }
+}
+
 fn get_output_dimensions() -> Option<(u32, u32)> {
+    match detect_compositor()? {
+        Compositor::Niri => get_output_dimensions_niri(),
+        Compositor::Hyprland => get_output_dimensions_hyprland(),
+        Compositor::Sway => get_output_dimensions_sway(),
+    }
+}
+
+fn get_output_dimensions_niri() -> Option<(u32, u32)> {
     #[derive(serde::Deserialize)]
     struct OutputData {
-        logical: LogicalDimensions,
+        logical: Option<LogicalDimensions>,
     }
 
     #[derive(serde::Deserialize)]
@@ -106,9 +143,7 @@ fn get_output_dimensions() -> Option<(u32, u32)> {
     }
 
     let output = Command::new("niri")
-        .arg("msg")
-        .arg("-j")
-        .arg("outputs")
+        .args(["msg", "-j", "outputs"])
         .output()
         .ok()?;
 
@@ -116,12 +151,68 @@ fn get_output_dimensions() -> Option<(u32, u32)> {
         return None;
     }
 
-    let json_str = String::from_utf8(output.stdout).ok()?;
     let outputs: std::collections::HashMap<String, OutputData> =
-        serde_json::from_str(&json_str).ok()?;
+        serde_json::from_slice(&output.stdout).ok()?;
 
     outputs
         .values()
-        .next()
-        .map(|output_data| (output_data.logical.width, output_data.logical.height))
+        .find_map(|o| o.logical.as_ref().map(|l| (l.width, l.height)))
+}
+
+fn get_output_dimensions_hyprland() -> Option<(u32, u32)> {
+    #[derive(serde::Deserialize)]
+    struct Monitor {
+        width: u32,
+        height: u32,
+        focused: bool,
+    }
+
+    let output = Command::new("hyprctl")
+        .args(["monitors", "-j"])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let monitors: Vec<Monitor> = serde_json::from_slice(&output.stdout).ok()?;
+
+    // prefer focused monitor, fall back to first
+    monitors
+        .iter()
+        .find(|m| m.focused)
+        .or_else(|| monitors.first())
+        .map(|m| (m.width, m.height))
+}
+
+fn get_output_dimensions_sway() -> Option<(u32, u32)> {
+    #[derive(serde::Deserialize)]
+    struct Output {
+        rect: Rect,
+        focused: bool,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct Rect {
+        width: u32,
+        height: u32,
+    }
+
+    let output = Command::new("swaymsg")
+        .args(["-t", "get_outputs", "--raw"])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let outputs: Vec<Output> = serde_json::from_slice(&output.stdout).ok()?;
+
+    outputs
+        .iter()
+        .find(|o| o.focused)
+        .or_else(|| outputs.first())
+        .map(|o| (o.rect.width, o.rect.height))
 }
