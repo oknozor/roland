@@ -4,15 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-evdev = "0.13.2"
 clap = { version = "4", features = ["derive"] }
 color-eyre = "0.6"
-input = "0.9.1"
+input = "0.10.0"
 libc = "0.2.178"
 tracing = "0.1"
 tracing-subscriber = "0.3.0"
-serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-toml = "0.9.10"
-rustix = { version = "0.38", features = ["event"] }
+toml = "1.1.2"
+rustix = { version = "1.1.4", features = ["event"] }
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "unstable"] }
 thiserror = "2.0.18"
