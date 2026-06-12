@@ -3,17 +3,12 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     crane.url = "github:ipetkov/crane";
   };
 
-  outputs = { self, nixpkgs, rust-overlay, crane }:
+  outputs = { self, nixpkgs, crane }:
   let
     overlays = [
-      rust-overlay.overlays.default
       self.overlays.default
     ];
 
@@ -30,27 +25,13 @@
       crossSystem.config = "aarch64-unknown-linux-gnu";
     };
 
-    mkRustToolchain = pkgs: pkgs.rust-bin.stable.latest.default.override {
-      extensions = [
-        "rust-src"
-        "rust-analyzer-preview"
-        "llvm-tools"
-      ];
-      targets = [
-        "x86_64-unknown-linux-gnu"
-        "aarch64-unknown-linux-gnu"
-      ];
-    };
-
     shell = { mkShell, pkgsBuildHost, pkgsHostHost }:
-      let
-        rustToolchain = mkRustToolchain pkgsBuildHost;
-      in mkShell {
+      mkShell {
         nativeBuildInputs = with pkgsBuildHost; [
-          rustToolchain
           rustfmt
           clippy
           rustc
+          cargo
           rust-analyzer
           cargo-machete
           cargo-llvm-cov
@@ -64,14 +45,13 @@
         ];
 
         shellHook = ''
-          export LLVM_COV="${rustToolchain}/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-cov"
-          export LLVM_PROFDATA="${rustToolchain}/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-profdata"
+          export LLVM_COV="${pkgsBuildHost.llvmPackages.bintools}/bin/llvm-cov"
+          export LLVM_PROFDATA="${pkgsBuildHost.llvmPackages.bintools}/bin/llvm-profdata"
         '';
       };
 
   in {
     overlays.default = nixpkgs.lib.composeManyExtensions [
-      rust-overlay.overlays.default
       (import ./nix/overlay.nix { inherit crane; })
     ];
 

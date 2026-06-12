@@ -10,6 +10,18 @@ A compositor-agnostic touch gesture recognizer for Linux, built on top of the `i
 - Duration and distance thresholds
 - Configurable actions via shell commands
 
+## Permissions
+
+Roland requires access to `/dev/input` devices. Your user must be in the `input` group.
+
+On NixOS, add it to your user configuration:
+
+```nix
+users.users.yourname.extraGroups = [ "input" ];
+```
+
+Then log out and back in for the group membership to take effect.
+
 ## Usage
 
 ### Standalone
@@ -18,6 +30,7 @@ A compositor-agnostic touch gesture recognizer for Linux, built on top of the `i
 ```sh
    cargo build --release
 ```
+
 2. Run the binary:
 ```sh
    ./target/release/roland --config config.example.toml
@@ -30,28 +43,26 @@ See [config.example.toml](config.example.toml) for configuration reference.
 Roland ships both an overlay (to add `pkgs.roland`) and a Home Manager module.
 **Both must be applied.** The module references `pkgs.roland` from the overlay.
 
-#### 1. Add the input
+1. Add the input:
 
 ```nix
 inputs.roland.url = "github:hftsai256/roland";
 inputs.roland.inputs.nixpkgs.follows = "nixpkgs";
 ```
 
-#### 2. Apply the overlay
-
-The overlay bundles `rust-overlay` internally, so no additional overlays are needed.
+2. Apply the overlay:
 
 ```nix
 nixpkgs.overlays = [ inputs.roland.overlays.default ];
 ```
 
-#### 3. Import the Home Manager module
+3. Import the Home Manager module:
 
 ```nix
 imports = [ inputs.roland.homeModules.default ];
 ```
 
-#### 4. Configure
+4. Configure example:
 
 ```nix
 services.roland = {
@@ -74,8 +85,6 @@ services.roland = {
   ];
 };
 ```
-
-See [config.example.toml](config.example.toml) for all available gesture options.
 
 ## Configuration Reference
 
