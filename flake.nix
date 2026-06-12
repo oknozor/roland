@@ -70,14 +70,17 @@
       };
 
   in {
-    overlays.default = import ./nix/overlay.nix { inherit crane; };
+    overlays.default = nixpkgs.lib.composeManyExtensions [
+      rust-overlay.overlays.default
+      (import ./nix/overlay.nix { inherit crane; })
+    ];
 
     packages.x86_64-linux = {
       roland = pkgs.roland;
       default = pkgs.roland;
     };
 
-    homeManagerModules.default = import ./nix/modules/roland.nix;
+    homeModules.default = ./nix/modules/roland.nix;
 
     devShells.x86_64-linux = {
       default = pkgs.callPackage shell {};

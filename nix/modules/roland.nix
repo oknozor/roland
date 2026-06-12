@@ -1,9 +1,9 @@
-# Home-manager module for roland
 { config, lib, pkgs, ... }:
 
 let
   cfg = config.services.roland;
   toml = pkgs.formats.toml { };
+
 in {
   options.services.roland = {
     enable = lib.mkEnableOption "roland touch gesture daemon";
@@ -17,13 +17,13 @@ in {
 
     systemdTarget = lib.mkOption {
       type = lib.types.str;
-      default = cfg.systemdTarget;
+      default = "graphical-session.target";
       description = "Systemd target to bind the roland service to.";
     };
 
     # Accept either a path to an existing file or an inline attrset that gets
     # serialised to TOML.  Using an attrset lets you keep your gestures in Nix.
-    config = lib.mkOption {
+    settings = lib.mkOption {
       type = lib.types.either lib.types.path (lib.types.submodule {
         options.gestures = lib.mkOption {
           type = lib.types.listOf lib.types.attrs;
@@ -57,13 +57,13 @@ in {
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    systemd.user.services.roland =
-      let
+  config = {
+    systemd.user.services.roland = lib.mkIf cfg.enable
+      (let
         configFile =
-          if lib.isPath cfg.config || lib.isString cfg.config
-          then cfg.config
-          else toml.generate "roland-config.toml" cfg.config;
+          if lib.isPath cfg.settings || lib.isString cfg.settings
+          then cfg.settings
+          else toml.generate "roland-config.toml" cfg.settings;
       in {
         Unit = {
           Description = "Roland touch gesture daemon";
@@ -79,6 +79,6 @@ in {
         };
 
         Install.WantedBy = [ cfg.systemdTarget ];
-      };
+      });
   };
 }
